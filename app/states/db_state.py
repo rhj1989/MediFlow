@@ -114,6 +114,17 @@ def create_tables():
             FOREIGN KEY (customer_id) REFERENCES customers(id)
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS prescription_medicines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            prescription_id INTEGER NOT NULL,
+            medicine_id INTEGER NOT NULL,
+            quantity INTEGER NOT NULL,
+            dosage_instructions TEXT,
+            FOREIGN KEY (prescription_id) REFERENCES prescriptions(id) ON DELETE CASCADE,
+            FOREIGN KEY (medicine_id) REFERENCES medicines(id)
+        )
+    """)
     try:
         cursor.execute("PRAGMA table_info(sales)")
         columns = [column[1] for column in cursor.fetchall()]

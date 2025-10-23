@@ -22,15 +22,32 @@ class Customer(TypedDict):
     name: str
 
 
+class MedicineBasic(TypedDict):
+    id: int
+    name: str
+    batch_no: str
+    quantity: int
+    unit: Optional[str]
+
+
+class PrescriptionMedicine(TypedDict):
+    medicine_id: int
+    name: str
+    quantity: int
+    dosage_instructions: str
+
+
 class PrescriptionState(rx.State):
     prescriptions: list[Prescription] = []
     customers: list[Customer] = []
+    medicines_for_selection: list[MedicineBasic] = []
     search_query: str = ""
+    medicine_search_query: str = ""
     show_form: bool = False
     is_editing: bool = False
     edit_id: Optional[int] = None
     form_data: dict = {}
-    form_image_preview: str = ""
+    selected_medicines: dict[int, PrescriptionMedicine] = {}
 
     def _get_prescriptions_dir(self) -> str:
         return os.path.join(rx.get_upload_dir(), "prescriptions")
@@ -46,6 +63,28 @@ class PrescriptionState(rx.State):
             if query in p["customer_name"].lower()
             or (p["prescription_number"] and query in p["prescription_number"].lower())
         ]
+
+    @rx.var
+    def filtered_medicines_for_selection(self) -> list[MedicineBasic]:
+        if not self.medicine_search_query:
+            return []
+        query = self.medicine_search_query.lower()
+        return [
+            m
+            for m in self.medicines_for_selection
+            if query in m["name"].lower() or query in m["batch_no"].lower()
+        ][:10]
+
+    @rx.var
+    def selected_medicines_list(self) -> list[PrescriptionMedicine]:
+        return list(self.selected_medicines.values())
+
+    @rx.var
+    def form_image_preview(self) -> str:
+        image_path = self.form_data.get("image_path")
+        if image_path:
+            return f"/prescriptions/{image_path}"
+        return ""
 
     @rx.event
     def load_prescriptions(self):
@@ -81,6 +120,19 @@ class PrescriptionState(rx.State):
             self.customers = [
                 {"id": r["id"], "name": r["name"]} for r in cursor.fetchall()
             ]
+            cursor.execute(
+                "SELECT id, name, batch_no, quantity, unit FROM medicines WHERE quantity > 0 ORDER BY name"
+            )
+            self.medicines_for_selection = [
+                {
+                    "id": r["id"],
+                    "name": r["name"],
+                    "batch_no": r["batch_no"],
+                    "quantity": r["quantity"],
+                    "unit": r["unit"],
+                }
+                for r in cursor.fetchall()
+            ]
             conn.close()
         except Exception as e:
             logging.exception(f"Error loading prescriptions: {e}")
@@ -97,6 +149,8 @@ class PrescriptionState(rx.State):
         self.is_editing = False
         self.edit_id = None
         self.form_image_preview = ""
+        self.selected_medicines = {}
+        self.medicine_search_query = ""
 
     @rx.event
     def open_add_form(self):
@@ -117,12 +171,39 @@ class PrescriptionState(rx.State):
             "doctor_name": prescription["doctor_name"],
             "prescription_date": prescription["prescription_date"],
             "notes": prescription["notes"],
+            "image_path": prescription["image_path"],
         }
-        if prescription["image_path"]:
-            self.form_image_preview = (
-                f"/upload/prescriptions/{prescription['image_path']}"
-            )
         self.show_form = True
+        return PrescriptionState.load_prescription_medicines
+
+    @rx.event
+    def load_prescription_medicines(self):
+        if not self.edit_id:
+            return
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT pm.medicine_id, m.name, pm.quantity, pm.dosage_instructions
+                FROM prescription_medicines pm
+                JOIN medicines m ON pm.medicine_id = m.id
+                WHERE pm.prescription_id = ?
+            """,
+                (self.edit_id,),
+            )
+            self.selected_medicines = {
+                r["medicine_id"]: {
+                    "medicine_id": r["medicine_id"],
+                    "name": r["name"],
+                    "quantity": r["quantity"],
+                    "dosage_instructions": r["dosage_instructions"],
+                }
+                for r in cursor.fetchall()
+            }
+            conn.close()
+        except Exception as e:
+            logging.exception(f"Error loading prescription medicines: {e}")
 
     @rx.event
     async def handle_upload(self, files: list[rx.UploadFile]):
@@ -137,7 +218,36 @@ class PrescriptionState(rx.State):
         with open(file_path, "wb") as f:
             f.write(upload_data)
         self.form_data["image_path"] = unique_name
-        self.form_image_preview = f"/upload/prescriptions/{unique_name}"
+
+    @rx.event
+    def add_medicine_to_prescription(self, medicine: MedicineBasic):
+        med_id = medicine["id"]
+        if med_id not in self.selected_medicines:
+            self.selected_medicines[med_id] = {
+                "medicine_id": med_id,
+                "name": medicine["name"],
+                "quantity": 1,
+                "dosage_instructions": "",
+            }
+        self.medicine_search_query = ""
+
+    @rx.event
+    def update_prescription_medicine(self, med_id: int, field: str, value: str):
+        if med_id in self.selected_medicines:
+            if field == "quantity":
+                try:
+                    self.selected_medicines[med_id]["quantity"] = int(value)
+                except ValueError as e:
+                    logging.exception(
+                        f"Error updating prescription medicine quantity: {e}"
+                    )
+            else:
+                self.selected_medicines[med_id][field] = value
+
+    @rx.event
+    def remove_medicine_from_prescription(self, med_id: int):
+        if med_id in self.selected_medicines:
+            del self.selected_medicines[med_id]
 
     @rx.event
     def save_prescription(self, form_data: dict):
@@ -149,6 +259,7 @@ class PrescriptionState(rx.State):
             cursor = conn.cursor()
             image_path_to_save = merged_data.get("image_path")
             if self.is_editing:
+                prescription_id = self.edit_id
                 if not image_path_to_save:
                     cursor.execute(
                         "SELECT image_path FROM prescriptions WHERE id = ?",
@@ -168,7 +279,6 @@ class PrescriptionState(rx.State):
                         self.edit_id,
                     ),
                 )
-                yield rx.toast.success("Prescription updated successfully!")
             else:
                 cursor.execute(
                     """INSERT INTO prescriptions (customer_id, prescription_number, doctor_name, prescription_date, notes, image_path) 
@@ -182,8 +292,29 @@ class PrescriptionState(rx.State):
                         image_path_to_save,
                     ),
                 )
-                yield rx.toast.success("Prescription added successfully!")
+                prescription_id = cursor.lastrowid
+            cursor.execute(
+                "DELETE FROM prescription_medicines WHERE prescription_id = ?",
+                (prescription_id,),
+            )
+            for med in self.selected_medicines.values():
+                cursor.execute(
+                    """
+                    INSERT INTO prescription_medicines (prescription_id, medicine_id, quantity, dosage_instructions)
+                    VALUES (?, ?, ?, ?)
+                """,
+                    (
+                        prescription_id,
+                        med["medicine_id"],
+                        med["quantity"],
+                        med["dosage_instructions"],
+                    ),
+                )
             conn.commit()
+            if self.is_editing:
+                yield rx.toast.success("Prescription updated successfully!")
+            else:
+                yield rx.toast.success("Prescription added successfully!")
             conn.close()
             self.toggle_form()
             return PrescriptionState.load_prescriptions

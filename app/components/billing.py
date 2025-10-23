@@ -66,6 +66,28 @@ def customer_selection() -> rx.Component:
             default_value=BillingState.selected_customer_id,
             class_name="w-full p-3 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500",
         ),
+        rx.cond(
+            BillingState.customer_prescriptions.length() > 0,
+            rx.el.div(
+                rx.el.label(
+                    "Load from Prescription",
+                    class_name="text-sm font-medium text-gray-700 mb-1",
+                ),
+                rx.el.select(
+                    rx.el.option("Select a prescription to load...", value=""),
+                    rx.foreach(
+                        BillingState.customer_prescriptions,
+                        lambda p: rx.el.option(
+                            p["display_text"], value=p["id"].to_string()
+                        ),
+                    ),
+                    on_change=BillingState.load_prescription_into_cart,
+                    default_value=BillingState.selected_prescription_id,
+                    class_name="w-full p-3 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500",
+                ),
+                class_name="w-full",
+            ),
+        ),
         rx.el.div(
             rx.el.label(
                 "Doctor's Name (Optional)",

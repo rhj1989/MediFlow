@@ -110,6 +110,31 @@ Building a comprehensive web-based medical store management system with billing,
 
 ---
 
+## Phase 9: Prescription Medicine Integration & Billing Enhancement ✅
+- [x] Create prescription_medicines table (id, prescription_id, medicine_id, quantity, dosage_instructions)
+- [x] Add medicine selection to prescription form:
+  - Search and select medicines from inventory
+  - Add multiple medicines to prescription
+  - Specify quantity and dosage instructions for each medicine
+  - Display selected medicines in editable table
+- [x] Implement medicine management in prescriptions:
+  - Add/remove medicines from prescription
+  - Update quantities and dosage instructions
+  - Save medicine associations with prescription
+- [x] Enhance billing page with prescription loading:
+  - Display prescription selector when customer is selected
+  - Show customer's prescriptions in dropdown
+  - "Load from Prescription" button to auto-fill cart
+  - Automatically add prescription medicines to cart
+- [x] Implement prescription-to-cart workflow:
+  - Load medicines from selected prescription
+  - Auto-populate quantities from prescription
+  - Validate stock availability before adding
+  - Handle low stock warnings
+- [x] CASCADE DELETE for prescription medicines when prescription is deleted
+
+---
+
 ## Notes
 - Default login credentials: admin / admin
 - All pages are protected and require authentication
@@ -125,3 +150,6 @@ Building a comprehensive web-based medical store management system with billing,
 - Prescription search by customer name or prescription number
 - **Drug Type field categorizes medicines (Tablet, Capsule, Syrup, Injection, Cream, Ointment, Drops, Inhaler)**
 - **Medicine units track measurement types (Tablets, Bottles, Strips, ml, mg, gm, Injections, Syrups)**
+- **Prescriptions now include medicine lists with dosage instructions**
+- **Billing can auto-load medicines from customer prescriptions**
+- **Complete workflow: Customer → Prescription + Medicines → Billing → Auto-populate Cart**

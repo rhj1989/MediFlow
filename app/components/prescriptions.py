@@ -101,25 +101,19 @@ def prescription_form_modal() -> rx.Component:
                                     class_name="text-sm font-medium",
                                 ),
                                 rx.upload.root(
-                                    rx.el.div(
-                                        rx.el.button(
-                                            rx.icon(
-                                                "cloud_upload",
-                                                class_name="h-4 w-4 mr-2",
-                                            ),
-                                            "Select File",
-                                            type="button",
-                                            on_click=PrescriptionState.handle_upload(
-                                                rx.upload_files(
-                                                    upload_id="prescription_upload"
-                                                )
-                                            ),
-                                            class_name="flex items-center text-sm px-3 py-1.5 border rounded-md text-gray-600 hover:bg-gray-50",
+                                    rx.el.button(
+                                        rx.icon(
+                                            "cloud_upload", class_name="h-4 w-4 mr-2"
                                         ),
-                                        class_name="flex gap-2 items-center",
+                                        "Select File",
+                                        type="button",
+                                        class_name="flex items-center text-sm px-3 py-1.5 border rounded-md text-gray-600 hover:bg-gray-50",
                                     ),
                                     id="prescription_upload",
                                     accept={"image/*": []},
+                                    on_drop=PrescriptionState.handle_upload(
+                                        rx.upload_files(upload_id="prescription_upload")
+                                    ),
                                 ),
                                 rx.cond(
                                     PrescriptionState.form_image_preview != "",
@@ -131,6 +125,108 @@ def prescription_form_modal() -> rx.Component:
                                 class_name="col-span-1 md:col-span-2",
                             ),
                             class_name="grid grid-cols-1 md:grid-cols-2 gap-4 py-4",
+                        ),
+                        rx.el.div(
+                            rx.el.label("Medicines", class_name="text-sm font-medium"),
+                            rx.el.div(
+                                rx.el.input(
+                                    placeholder="Search and add medicines...",
+                                    on_key_down=PrescriptionState.set_medicine_search_query,
+                                    class_name="w-full p-2 border rounded-md",
+                                    default_value=PrescriptionState.medicine_search_query,
+                                ),
+                                rx.cond(
+                                    PrescriptionState.medicine_search_query != "",
+                                    rx.el.div(
+                                        rx.foreach(
+                                            PrescriptionState.filtered_medicines_for_selection,
+                                            lambda med: rx.el.div(
+                                                rx.el.p(
+                                                    f"{med['name']} ({med['batch_no']}) - Stock: {med['quantity']}"
+                                                ),
+                                                on_click=lambda: PrescriptionState.add_medicine_to_prescription(
+                                                    med
+                                                ),
+                                                class_name="p-2 hover:bg-gray-100 cursor-pointer rounded-md",
+                                            ),
+                                        ),
+                                        class_name="absolute top-full left-0 right-0 bg-white border rounded-b-md shadow-lg z-20 max-h-48 overflow-y-auto mt-1",
+                                    ),
+                                ),
+                                class_name="relative z-10",
+                            ),
+                            rx.el.div(
+                                rx.el.table(
+                                    rx.el.thead(
+                                        rx.el.tr(
+                                            rx.el.th(
+                                                "Medicine", class_name="p-2 text-left"
+                                            ),
+                                            rx.el.th(
+                                                "Quantity", class_name="p-2 text-left"
+                                            ),
+                                            rx.el.th(
+                                                "Dosage", class_name="p-2 text-left"
+                                            ),
+                                            rx.el.th("", class_name="p-2"),
+                                        )
+                                    ),
+                                    rx.el.tbody(
+                                        rx.foreach(
+                                            PrescriptionState.selected_medicines_list,
+                                            lambda med: rx.el.tr(
+                                                rx.el.td(med["name"], class_name="p-2"),
+                                                rx.el.td(
+                                                    rx.el.input(
+                                                        type="number",
+                                                        default_value=med[
+                                                            "quantity"
+                                                        ].to_string(),
+                                                        on_change=lambda val: PrescriptionState.update_prescription_medicine(
+                                                            med["medicine_id"],
+                                                            "quantity",
+                                                            val,
+                                                        ),
+                                                        class_name="w-20 p-1 border rounded-md text-center",
+                                                    ),
+                                                    class_name="p-2",
+                                                ),
+                                                rx.el.td(
+                                                    rx.el.input(
+                                                        placeholder="e.g., 1-0-1 after food",
+                                                        default_value=med[
+                                                            "dosage_instructions"
+                                                        ],
+                                                        on_change=lambda val: PrescriptionState.update_prescription_medicine(
+                                                            med["medicine_id"],
+                                                            "dosage_instructions",
+                                                            val,
+                                                        ),
+                                                        class_name="w-full p-1 border rounded-md",
+                                                    ),
+                                                    class_name="p-2",
+                                                ),
+                                                rx.el.td(
+                                                    rx.el.button(
+                                                        rx.icon(
+                                                            "x", class_name="h-4 w-4"
+                                                        ),
+                                                        on_click=lambda: PrescriptionState.remove_medicine_from_prescription(
+                                                            med["medicine_id"]
+                                                        ),
+                                                        class_name="text-red-500 hover:text-red-700",
+                                                    ),
+                                                    class_name="p-2 text-center",
+                                                ),
+                                                class_name="border-b",
+                                            ),
+                                        )
+                                    ),
+                                    class_name="w-full text-sm mt-2",
+                                ),
+                                class_name="mt-2 max-h-60 overflow-y-auto",
+                            ),
+                            class_name="col-span-1 md:col-span-2 mt-4",
                         ),
                         rx.el.div(
                             rx.el.button(
